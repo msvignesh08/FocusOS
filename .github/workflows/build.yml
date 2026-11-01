@@ -1,0 +1,40 @@
+from pathlib import Path
+import zipfile
+
+root = Path("/mnt/data/FocusOS")
+prefs = root / "app/src/main/java/com/focusos/app/FocusPrefs.kt"
+s = prefs.read_text()
+s = s.replace(
+    'val elapsed = ((System.currentTimeMillis() - (end - mins * 60_000L)) / 60_000L).toInt().coerceAtLeast(0)',
+    'val elapsed = (((System.currentTimeMillis() - (end - mins * 60_000L)) / 60_000L).toInt()).coerceIn(0, mins)'
+)
+prefs.write_text(s)
+
+service = root / "app/src/main/java/com/focusos/app/FocusAccessibilityService.kt"
+s = service.read_text()
+s = s.replace(
+'''        val safe = listOf("com.android.systemui", "com.android.permissioncontroller",
+            "com.google.android.permissioncontroller", "com.android.settings",
+            "com.android.launcher", "com.google.android.inputmethod")
+        return safe.any { pkg == it || pkg.startsWith(it) } ||
+            pkg.contains("launcher", ignoreCase = true) ||
+            pkg.contains("inputmethod", ignoreCase = true) ||
+            pkg.contains("keyboard", ignoreCase = true)''',
+'''        val safe = listOf("com.android.systemui", "com.android.permissioncontroller",
+            "com.google.android.permissioncontroller", "com.android.settings",
+            "com.android.launcher", "com.google.android.inputmethod")
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val homePackage = packageManager.resolveActivity(homeIntent, 0)?.activityInfo?.packageName
+        return pkg == homePackage || safe.any { pkg == it || pkg.startsWith(it) } ||
+            pkg.contains("launcher", ignoreCase = true) ||
+            pkg.contains("inputmethod", ignoreCase = true) ||
+            pkg.contains("keyboard", ignoreCase = true)'''
+)
+service.write_text(s)
+
+zip_path = Path("/mnt/data/FocusOS-Android-MVP.zip")
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    for p in root.rglob("*"):
+        if p.is_file():
+            z.write(p, p.relative_to(root.parent))
+print(f"Updated project archive: {zip_path} ({zip_path.stat().st_size:,} bytes)")
